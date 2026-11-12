@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopEasy - Demo Store</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f4f5f7; color: #1f2937; }
+  .top { background: #111827; color: #e5e7eb; padding: 8px 20px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+  .top input, .top select { padding: 4px 6px; border-radius: 4px; border: 0; }
+  .top input { width: 80px; }
+  header { background: #fff; padding: 12px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; }
+  .brand { font-weight: 700; font-size: 20px; cursor: pointer; border: 0; background: none; }
+  .searchbox { display: flex; flex: 1; min-width: 220px; gap: 6px; }
+  .searchbox input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+  nav button { background: none; border: 0; padding: 8px 12px; cursor: pointer; font-size: 15px; border-bottom: 2px solid transparent; }
+  nav button.active { border-bottom-color: #2563eb; color: #2563eb; }
+  .badge { background: #ef4444; color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 12px; margin-left: 4px; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 20px; padding: 20px; }
+  @media (max-width: 950px) { main { grid-template-columns: 1fr; } }
+  .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .hero { background: linear-gradient(120deg, #2563eb, #7c3aed); color: #fff; padding: 28px; border-radius: 10px; margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .pcard { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #fff; }
+  .emoji { font-size: 52px; text-align: center; }
+  .pname { font-weight: 600; margin-top: 6px; }
+  .muted { color: #6b7280; font-size: 13px; }
+  .price { font-weight: 700; margin: 6px 0; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 8px 12px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: 13px; }
+  .btn:hover { background: #1d4ed8; }
+  .btn.ghost { background: #e5e7eb; color: #111827; }
+  .btn.ghost:hover { background: #d1d5db; }
+  .btn.green { background: #16a34a; } .btn.red { background: #dc2626; }
+  .icon { border: 0; background: none; font-size: 22px; cursor: pointer; color: #dc2626; }
+  .cats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; } td, th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
+  .total td { font-weight: 700; }
+  input.text, select.text { padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; margin: 4px 0 10px; }
+  #log { font-family: monospace; font-size: 12px; height: 480px; overflow-y: auto; }
+  #log div { padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
+  .ok { color: #15803d; } .err { color: #b91c1c; }
+  h3 { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <b>Simulator</b>
+  <label>User ID <input id="uid" value="u1"></label>
+  <label>Traffic source
+    <select id="source">
+      <option>organic</option><option>paid</option><option>email</option><option>social</option><option>direct</option>
+    </select>
+  </label>
+  <span>Session: <code id="sid"></code></span>
+  <button id="newSession" class="btn ghost">New session</button>
+</div>
+
+<header>
+  <button class="brand" data-btn="logo" data-feature="navigation" data-action="go" data-path="/home">🛍️ ShopEasy</button>
+  <div class="searchbox">
+    <input id="search" placeholder="Search products (try: shoes, lamp, laptop...)">
+    <button class="btn" id="searchBtn" data-btn="search_submit" data-feature="search" data-action="search">Search</button>
+  </div>
+  <nav>
+    <button data-path="/home" data-btn="nav_home" data-feature="navigation" data-action="go">Home</button>
+    <button data-path="/products" data-btn="nav_products" data-feature="navigation" data-action="go">Products</button>
+    <button data-path="/cart" data-btn="nav_cart" data-feature="navigation" data-action="go">Cart<span class="badge" id="cartCount">0</span></button>
+  </nav>
+</header>
+
+<main>
+  <div class="card" id="view"></div>
+  <div class="card">
+    <h3>Live event log</h3>
+    <div class="muted">Sent: <b id="sent">0</b> | Failed: <b id="failed">0</b></div>
+    <div id="log"></div>
+  </div>
+</main>
+
+<script>
+const ENDPOINT = "http://localhost:8000/track";
+const CATS = ["Electronics", "Fashion", "Home", "Books"];
+const PRODUCTS = [
+  {id:"P101", name:"Wireless Earbuds",   category:"Electronics", price:49.99,  rating:4.5, emoji:"🎧", desc:"Noise-isolating earbuds with 24h battery."},
+  {id:"P102", name:"Smart Watch",        category:"Electronics", price:129.00, rating:4.3, emoji:"⌚", desc:"Fitness tracking, sleep insights, 7-day battery."},
+  {id:"P103", name:"Bluetooth Speaker",  category:"Electronics", price:39.50,  rating:4.4, emoji:"🔊", desc:"Portable, waterproof, loud."},
+  {id:"P104", name:"Laptop Backpack",    category:"Fashion",     price:34.90,  rating:4.2, emoji:"🎒", desc:"Fits 15-inch laptops, water resistant."},
+  {id:"P105", name:"Running Shoes",      category:"Fashion",     price:79.00,  rating:4.6, emoji:"👟", desc:"Lightweight daily trainers."},
+  {id:"P106", name:"Denim Jacket",       category:"Fashion",     price:59.00,  rating:4.1, emoji:"🧥", desc:"Classic fit, all seasons."},
+  {id:"P107", name:"Coffee Maker",       category:"Home",        price:89.00,  rating:4.5, emoji:"☕", desc:"Programmable 12-cup brewer."},
+  {id:"P108", name:"Desk Lamp",          category:"Home",        price:24.99,  rating:4.0, emoji:"💡", desc:"Dimmable LED with USB port."},
+  {id:"P109", name:"Throw Blanket",      category:"Home",        price:29.00,  rating:4.7, emoji:"🛏️", desc:"Soft knit, machine washable."},
+  {id:"P110", name:"Data Engineering Handbook", category:"Books", price:42.00, rating:4.8, emoji:"📘", desc:"Pipelines, lakehouse and modeling patterns."},
+  {id:"P111", name:"SQL Cookbook",       category:"Books",       price:28.00,  rating:4.7, emoji:"📗", desc:"Practical recipes for analysts."},
+  {id:"P112", name:"Notebook Set",       category:"Books",       price:12.50,  rating:4.2, emoji:"📓", desc:"Set of 3 ruled notebooks."}
+];
+
+const $ = (id) => document.getElementById(id);
+const money = (n) => "$" + Number(n).toFixed(2);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const byId = (id) => PRODUCTS.find(p => p.id === id);
+const state = { page: "/home", cart: {}, wish: new Set(), category: "All", sort: "featured", query: "", coupon: null, couponMsg: "", lastOrder: null };
+let sent = 0, failed = 0;
+
+/* ---------- session ---------- */
+function newSession() { $("sid").textContent = crypto.randomUUID().slice(0, 8); }
+newSession();
+$("newSession").onclick = () => { newSession(); state.cart = {}; state.coupon = null; go("/home"); };
+
+/* ---------- tracking ---------- */
+async function track(type, o = {}) {
+  const ev = {
+    event_id: crypto.randomUUID(),
+    user_id: $("uid").value.trim() || "anonymous",
+    session_id: $("sid").textContent,
+    event_ts: new Date().toISOString(),
+    interaction_type: type,
+    page_name: o.page || state.page,
+    button_name: o.button || null,
+    feature_name: o.feature || null,
+    element_id: null,
+    device: /Mobi/.test(navigator.userAgent) ? "mobile" : "desktop",
+    app_version: "1.0.0",
+    properties: { traffic_source: $("source").value, ...(o.props || {}) }
+  };
+  const p = o.props || {};
+  const detail = o.button || p.search_term || p.product_name || p.order_id || "";
+  const line = document.createElement("div");
+  const label = `${ev.event_ts.slice(11, 19)} ${type} ${ev.page_name} ${detail}`;
+  try {
+    const r = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify([ev]) });
+    if (!r.ok) throw new Error(r.status);
+    sent++; line.className = "ok"; line.textContent = "✔ " + label;
+  } catch (e) {
+    failed++; line.className = "err"; line.textContent = "✘ " + label + " (" + e.message + ")";
+  }
+  $("sent").textContent = sent; $("failed").textContent = failed;
+  $("log").prepend(line);
+}
+const productProps = (p, extra = {}) => ({ product_id: p.id, product_name: p.name, category: p.category, price: p.price, ...extra });
+
+/* ---------- cart math ---------- */
+function totals() {
+  let subtotal = 0;
+  for (const [id, q] of Object.entries(state.cart)) subtotal += byId(id).price * q;
+  const discount = state.coupon ? subtotal * 0.10 : 0;
+  const shipping = (subtotal === 0 || subtotal - discount >= 50) ? 0 : 5;
+  return { subtotal, discount, shipping, total: subtotal - discount + shipping };
+}
+const cartItems = () => Object.entries(state.cart).map(([id, q]) => {
+  const p = byId(id); return { product_id: p.id, product_name: p.name, category: p.category, price: p.price, quantity: q };
+});
+const cartCount = () => Object.values(state.cart).reduce((a, b) => a + b, 0);
+
+function addToCart(id, qty = 1) {
+  const p = byId(id);
+  state.cart[id] = (state.cart[id] || 0) + qty;
+  track("add_to_cart", { feature: "cart", props: productProps(p, { quantity: qty, cart_value: totals().subtotal }) });
+  render();
+}
+function removeFromCart(id) {
+  const p = byId(id), q = state.cart[id] || 0;
+  delete state.cart[id];
+  track("remove_from_cart", { feature: "cart", props: productProps(p, { quantity: q, cart_value: totals().subtotal }) });
+  render();
+}
+
+/* ---------- catalog ---------- */
+function visible() {
+  let list = PRODUCTS.filter(p =>
+    (state.category === "All" || p.category === state.category) &&
+    (!state.query || (p.name + " " + p.category).toLowerCase().includes(state.query.toLowerCase())));
+  if (state.sort === "low") list.sort((a, b) => a.price - b.price);
+  else if (state.sort === "high") list.sort((a, b) => b.price - a.price);
+  else if (state.sort === "rating") list.sort((a, b) => b.rating - a.rating);
+  return list;
+}
+
+/* ---------- views ---------- */
+function card(p) {
+  return `<div class="pcard">
+    <div class="emoji">${p.emoji}</div>
+    <div class="pname">${esc(p.name)}</div>
+    <div class="muted">${p.category} · ⭐ ${p.rating}</div>
+    <div class="price">${money(p.price)}</div>
+    <div class="row">
+      <button class="btn ghost" data-btn="view_product" data-feature="product_detail" data-action="view" data-id="${p.id}">View</button>
+      <button class="btn" data-btn="add_to_cart" data-feature="cart" data-action="add" data-id="${p.id}">Add to cart</button>
+      <button class="icon" data-btn="wishlist_toggle" data-feature="wishlist" data-action="wish" data-id="${p.id}">${state.wish.has(p.id) ? "♥" : "♡"}</button>
+    </div></div>`;
+}
+function vHome() {
+  return `<div class="hero"><h2 style="margin-top:0">Autumn Sale</h2>
+      <p>Use code <b>SAVE10</b> for 10% off. Free shipping over $50.</p>
+      <button class="btn ghost" data-btn="hero_shop_now" data-feature="promotions" data-action="go" data-path="/products">Shop now</button></div>
+    <h3>Shop by category</h3>
+    <div class="cats">${CATS.map(c => `<button class="btn" data-btn="category_tile" data-feature="catalog_filter" data-action="category" data-cat="${c}">${c}</button>`).join("")}</div>
+    <h3>Featured</h3><div class="grid">${[PRODUCTS[0], PRODUCTS[4], PRODUCTS[6], PRODUCTS[9]].map(card).join("")}</div>`;
+}
+function vProducts() {
+  const list = visible();
+  return `<h3>Products</h3>
+    <div class="row" style="margin-bottom:14px">
+      <select id="catSel" class="text" style="width:auto;margin:0">
+        ${["All", ...CATS].map(c => `<option ${c === state.category ? "selected" : ""}>${c}</option>`).join("")}</select>
+      <select id="sortSel" class="text" style="width:auto;margin:0">
+        ${[["featured","Featured"],["low","Price: low to high"],["high","Price: high to low"],["rating","Top rated"]]
+          .map(([v, t]) => `<option value="${v}" ${v === state.sort ? "selected" : ""}>${t}</option>`).join("")}</select>
+      ${state.query ? `<span class="muted">Results for "${esc(state.query)}"</span>
+        <button class="btn ghost" data-btn="clear_search" data-feature="search" data-action="clear">Clear</button>` : ""}
+    </div>
+    ${list.length ? `<div class="grid">${list.map(card).join("")}</div>`
+                  : `<p>No products found. Try another search.</p>`}`;
+}
+function vProduct(id) {
+  const p = byId(id);
+  return `<button class="btn ghost" data-btn="back_to_products" data-feature="navigation" data-action="go" data-path="/products">← Back</button>
+    <div style="text-align:center"><div class="emoji" style="font-size:96px">${p.emoji}</div>
+    <h2>${esc(p.name)}</h2><p class="muted">${p.category} · ⭐ ${p.rating}</p>
+    <p>${esc(p.desc)}</p><div class="price" style="font-size:24px">${money(p.price)}</div>
+    <div class="row" style="justify-content:center">
+      <button class="btn green" data-btn="add_to_cart" data-feature="cart" data-action="add" data-id="${p.id}">Add to cart</button>
+      <button class="btn ghost" data-btn="wishlist_toggle" data-feature="wishlist" data-action="wish" data-id="${p.id}">${state.wish.has(p.id) ? "♥ Wishlisted" : "♡ Wishlist"}</button>
+    </div></div>`;
+}
+function vCart() {
+  const ids = Object.keys(state.cart);
+  if (!ids.length) return `<h3>Your cart</h3><p>Your cart is empty.</p>
+    <button class="btn" data-btn="continue_shopping" data-feature="cart" data-action="go" data-path="/products">Continue shopping</button>`;
+  const t = totals();
+  return `<h3>Your cart</h3><table>
+    <tr><th>Item</th><th>Qty</th><th>Price</th><th></th></tr>
+    ${ids.map(id => { const p = byId(id), q = state.cart[id]; return `<tr>
+      <td>${p.emoji} ${esc(p.name)}</td>
+      <td><button class="btn ghost" data-btn="qty_decrease" data-feature="cart" data-action="qtydown" data-id="${id}">−</button>
+          ${q}
+          <button class="btn ghost" data-btn="qty_increase" data-feature="cart" data-action="add" data-id="${id}">+</button></td>
+      <td>${money(p.price * q)}</td>
+      <td><button class="btn red" data-btn="remove_item" data-feature="cart" data-action="remove" data-id="${id}">Remove</button></td></tr>`; }).join("")}
+    <tr><td colspan="2">Subtotal</td><td colspan="2">${money(t.subtotal)}</td></tr>
+    <tr><td colspan="2">Discount ${state.coupon ? "(" + state.coupon + ")" : ""}</td><td colspan="2">-${money(t.discount)}</td></tr>
+    <tr><td colspan="2">Shipping</td><td colspan="2">${t.shipping ? money(t.shipping) : "Free"}</td></tr>
+    <tr class="total"><td colspan="2">Total</td><td colspan="2">${money(t.total)}</td></tr></table>
+    <div class="row" style="margin:14px 0">
+      <input id="couponIn" class="text" style="width:160px;margin:0" placeholder="Coupon code">
+      <button class="btn ghost" data-btn="apply_coupon" data-feature="promotions" data-action="coupon">Apply</button>
+      <span class="muted">${esc(state.couponMsg)}</span></div>
+    <button class="btn green" data-btn="checkout" data-feature="checkout" data-action="checkout">Proceed to checkout</button>`;
+}
+function vCheckout() {
+  const t = totals();
+  return `<h3>Checkout</h3>
+    <p class="muted">${cartCount()} item(s) · Total <b>${money(t.total)}</b></p>
+    <label>Full name</label><input class="text" placeholder="Jane Doe">
+    <label>Delivery address</label><input class="text" placeholder="Street, city">
+    <label>Payment method</label>
+    <select id="pay" class="text"><option value="card">Credit/Debit card</option><option value="cash_on_delivery">Cash on delivery</option><option value="wallet">Wallet</option></select>
+    <button class="btn green" data-btn="place_order" data-feature="checkout" data-action="place">Place order</button>
+    <button class="btn ghost" data-btn="back_to_cart" data-feature="checkout" data-action="go" data-path="/cart">Back to cart</button>`;
+}
+function vConfirm() {
+  const o = state.lastOrder;
+  if (!o) return `<p>No recent order.</p>`;
+  return `<h3>🎉 Order confirmed</h3><p>Order <b>${o.order_id}</b> · ${money(o.order_value)} · ${o.payment_method}</p>
+    <ul>${o.items.map(i => `<li>${i.quantity} × ${esc(i.product_name)}</li>`).join("")}</ul>
+    <button class="btn" data-btn="shop_again" data-feature="navigation" data-action="go" data-path="/products">Shop again</button>`;
+}
+
+function render() {
+  const p = state.page;
+  $("view").innerHTML =
+    p === "/home" ? vHome() : p === "/products" ? vProducts() : p.startsWith("/product/") ? vProduct(p.split("/")[2]) :
+    p === "/cart" ? vCart() : p === "/checkout" ? vCheckout() : vConfirm();
+  $("cartCount").textContent = cartCount();
+  document.querySelectorAll("nav [data-path]").forEach(b => b.classList.toggle("active", b.dataset.path === p));
+}
+function go(path) {
+  state.page = path; render(); window.scrollTo(0, 0);
+  if (path.startsWith("/product/")) {
+    track("product_view", { feature: "product_detail", props: productProps(byId(path.split("/")[2])) });
+  } else track("page_view");
+}
+
+/* ---------- actions ---------- */
+function doSearch() {
+  const q = $("search").value.trim();
+  if (!q) return;
+  state.query = q; state.category = "All";
+  track("search", { feature: "search", props: { search_term: q, results_count: visible().length } });
+  go("/products");
+}
+const ACTIONS = {
+  go: (d) => go(d.path),
+  view: (d) => go("/product/" + d.id),
+  add: (d) => addToCart(d.id, 1),
+  remove: (d) => removeFromCart(d.id),
+  qtydown: (d) => { if (state.cart[d.id] > 1) { state.cart[d.id]--; render(); } else removeFromCart(d.id); },
+  search: () => doSearch(),
+  clear: () => { state.query = ""; render(); },
+  category: (d) => {
+    state.category = d.cat; state.query = "";
+    track("filter", { feature: "catalog_filter", props: { filter_type: "category", filter_value: d.cat, results_count: visible().length } });
+    go("/products");
+  },
+  wish: (d) => {
+    const p = byId(d.id), had = state.wish.has(d.id);
+    had ? state.wish.delete(d.id) : state.wish.add(d.id);
+    track("wishlist", { feature: "wishlist", props: productProps(p, { action: had ? "removed" : "added" }) });
+    render();
+  },
+  coupon: () => {
+    const code = ($("couponIn").value || "").trim().toUpperCase();
+    const valid = code === "SAVE10";
+    state.coupon = valid ? code : null;
+    state.couponMsg = valid ? "10% discount applied" : "Invalid code";
+    track("coupon_apply", { feature: "promotions", props: { coupon_code: code, valid } });
+    render();
+  },
+  checkout: () => {
+    const t = totals();
+    track("checkout_start", { feature: "checkout", props: { cart_value: t.subtotal, item_count: cartCount(), coupon_code: state.coupon, items: cartItems() } });
+    go("/checkout");
+  },
+  place: () => {
+    if (!cartCount()) return;
+    const t = totals();
+    const order = {
+      order_id: "ORD" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      order_value: Math.round(t.total * 100) / 100, subtotal: t.subtotal, discount: t.discount, shipping: t.shipping,
+      coupon_code: state.coupon, payment_method: $("pay").value, item_count: cartCount(), items: cartItems()
+    };
+    track("purchase", { feature: "checkout", props: order });
+    state.lastOrder = order; state.cart = {}; state.coupon = null; state.couponMsg = "";
+    go("/order-confirmation");
+  }
+};
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-btn]");
+  if (!el) return;
+  const d = el.dataset;
+  track("click", { button: d.btn, feature: d.feature, props: d.id ? { product_id: d.id } : {} });   // every button click
+  if (ACTIONS[d.action]) ACTIONS[d.action](d);                                                      // plus the business event
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "catSel") {
+    state.category = e.target.value;
+    track("filter", { feature: "catalog_filter", props: { filter_type: "category", filter_value: state.category, results_count: visible().length } });
+    render();
+  } else if (e.target.id === "sortSel") {
+    state.sort = e.target.value;
+    track("sort", { feature: "catalog_filter", props: { sort_by: state.sort } });
+    render();
+  }
+});
+$("search").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+
+go("/home");
+</script>
+</body>
+</html>

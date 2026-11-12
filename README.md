@@ -2,7 +2,7 @@
 
 An end-to-end data engineering and analytics project that captures every click and interaction in an e-commerce app, stores it as structured events, and turns it into dashboards on conversion, cart abandonment, product performance and search behaviour.
 
-![Dashboard preview](Screenshots/Board.png)
+![Dashboard preview](Screenshots/Dash-Board.png)
 
 ## What it does
 

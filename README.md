@@ -49,4 +49,4 @@ FastAPI collector  ──►  PostgreSQL  raw_events (JSONB properties)
 
 ## Author
 
-[Your name] · [LinkedIn link]
+Renish G · 
